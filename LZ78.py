@@ -3,7 +3,7 @@
 
 def base256(n,pad):
     if n==0:
-        return [0]
+        return [0]*pad
     x=n
     l=[]
     while x>0 :
@@ -78,7 +78,7 @@ def lz78_decompresse(code):
 
     return t
 
-def octets(T):
+def octets(T,mode):
     r = bytearray()
     for e in T:
         if isinstance(e, int):
@@ -90,16 +90,16 @@ def octets(T):
             if len(e) != 1:
                 raise RuntimeError("*** Problème, les caractères doivent être donnés un par un !")
             try:
-                r.extend(e.encode("utf-8"))
+                r.extend(e.encode(mode))
             except UnicodeEncodeError:
-                raise RuntimeError("*** Problème, '{}' n'est pas un caractère ASCII !".format(repr(e)))
+                raise RuntimeError("*** Problème, '{}' n'est pas un caractère '{}' !".format(repr(e),mode))
         else:
             raise RuntimeError("*** Problème, '{}' n'est ni un entier, ni un caractère !".format(repr(e)))
             sys.exit(-1)
     return r
     
 
-def lz78_compresse_bin(texte):
+def lz78_compresse_bin(texte,mode="utf-8"):
     resultat = []
 
     dico={"":0}
@@ -114,7 +114,6 @@ def lz78_compresse_bin(texte):
 
             dico.update( {mot_courant+c:len(dico)} )
             mot_courant = ""
-            
         else:
             mot_courant = mot_courant + c
             
@@ -124,19 +123,36 @@ def lz78_compresse_bin(texte):
         bitsToUse = len( base256( len(dico)-1,0 ) )
         resultat.extend( base256(p,bitsToUse) )
 
-    #print(resultat)
-    return octets(resultat)
+    return octets(resultat,mode)
 
 
 def ascii(n):
     """transforme un octet en caractère ASCII"""
     try:
-        return bytes([n]).decode(encoding="ASCII")
+        return ( bytes([n]).decode(encoding="ASCII"), 1)
     except UnicodeDecodeError:
         raise RuntimeError("*** Problème, '{}' ne correspond pas à un caractère ASCII !".format(n))
 
+def utf8(octets):
+    """transforme un ou plusieurs octet en caractère UTF8"""
+    moctets=1
+    while moctets <=5:
+        try:
+            return ( octets[:moctets].decode(encoding="utf-8"), moctets )
+        except UnicodeDecodeError:
+            moctets+=1
 
-def lz78_decompresse_bin(code):
+    raise RuntimeError("*** Problème. Trouvé sequence que ne correspond pas à un caractère UTF8 ! %s" % (octets[:moctets],))
+
+def decode(code,mode):
+    if mode=="ascii":
+        return ascii(code[0])
+    elif mode=="utf-8":
+        return utf8(code)
+    else:
+        raise RuntimeError("Encodage %s n'est pas implementée" % (mode,) )
+
+def lz78_decompresse_bin(code,mode="utf-8"):
     dico=[""]
 
     i=0
@@ -147,7 +163,6 @@ def lz78_decompresse_bin(code):
         bitsToUse = len( base256( len(dico)-1,0 ) )
         while bitsToUse >0:
             p += code[i]*pow(256,bitsToUse-1)
-            print(p,bitsToUse,len(dico),code[i])
             i+=1
 
             bitsToUse-=1
@@ -156,8 +171,9 @@ def lz78_decompresse_bin(code):
             t+=dico[p]
             break
             
-        c = str( ascii(code[i]) )
-        i+= 1
+        c,skip = decode( code[i:],mode )
+        c=str(c)
+        i+= skip
 
         dico.append(dico[p]+c)
         t+=dico[-1]
@@ -215,12 +231,13 @@ def lz78_decompresse_fichier(fichier):
 
 
 
-def main():  
-   test_lz78('abracadabra')
-   test_lz78('oleole')
-
-   print(lz78_compresse_bin('abracadabra'))
-   print(lz78_decompresse_bin( lz78_compresse_bin('abracadabra')))
+def main(): 
+   m=open("tour-du-monde.txt").read()
+   c=lz78_compresse_bin(m)
+   d=lz78_decompresse_bin(c)
+   print(m==d)
+   
+   
 
 if __name__=='__main__':
     main()
