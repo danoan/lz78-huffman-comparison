@@ -8,5 +8,6 @@ Small tool to compare Huffman and LZ78 compression ratio.
 
 # Discussion
 
+CMakeLists.txt is missing
 Todo
 
